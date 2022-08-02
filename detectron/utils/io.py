@@ -49,7 +49,7 @@ file is manifested or used, external to the system.
     # Avoid filesystem race conditions (particularly on network filesystems)
     # by saving to a random tmp file on the same filesystem, and then
     # atomically rename to the target filename.
-    tmp_file_name = file_name + ".tmp." + uuid4().hex
+    tmp_file_name = f"{file_name}.tmp.{uuid4().hex}"
     try:
         with open(tmp_file_name, 'wb') as f:
             pickle.dump(obj, f, pickle_format)
@@ -77,10 +77,7 @@ def load_object(file_name):
         # the blob names either as ASCII, or better, as unicode utf-8. A
         # reasonable fix, however, is to treat it the encoding as 8-bit latin1
         # (which agrees with the first 256 characters of Unicode anyway.)
-        if six.PY2:
-            return pickle.load(f)
-        else:
-            return pickle.load(f, encoding='latin1')
+        return pickle.load(f) if six.PY2 else pickle.load(f, encoding='latin1')
 
 
 def cache_url(url_or_file, cache_dir):
@@ -96,9 +93,10 @@ def cache_url(url_or_file, cache_dir):
         return url_or_file
 
     url = url_or_file
-    assert url.startswith(_DETECTRON_S3_BASE_URL), \
-        ('Detectron only automatically caches URLs in the Detectron S3 '
-         'bucket: {}').format(_DETECTRON_S3_BASE_URL)
+    assert url.startswith(
+        _DETECTRON_S3_BASE_URL
+    ), f'Detectron only automatically caches URLs in the Detectron S3 bucket: {_DETECTRON_S3_BASE_URL}'
+
 
     cache_file_path = url.replace(_DETECTRON_S3_BASE_URL, cache_dir)
     if os.path.exists(cache_file_path):
@@ -109,7 +107,7 @@ def cache_url(url_or_file, cache_dir):
     if not os.path.exists(cache_file_dir):
         os.makedirs(cache_file_dir)
 
-    logger.info('Downloading remote file {} to {}'.format(url, cache_file_path))
+    logger.info(f'Downloading remote file {url} to {cache_file_path}')
     download_url(url, cache_file_path)
     assert_cache_file_is_ok(url, cache_file_path)
     return cache_file_path
@@ -121,12 +119,9 @@ def assert_cache_file_is_ok(url, file_path):
     # return local path
     cache_file_md5sum = _get_file_md5sum(file_path)
     ref_md5sum = _get_reference_md5sum(url)
-    assert cache_file_md5sum == ref_md5sum, \
-        ('Target URL {} appears to be downloaded to the local cache file '
-         '{}, but the md5 hash of the local file does not match the '
-         'reference (actual: {} vs. expected: {}). You may wish to delete '
-         'the cached file and try again to trigger automatic '
-         'download.').format(url, file_path, cache_file_md5sum, ref_md5sum)
+    assert (
+        cache_file_md5sum == ref_md5sum
+    ), f'Target URL {url} appears to be downloaded to the local cache file {file_path}, but the md5 hash of the local file does not match the reference (actual: {cache_file_md5sum} vs. expected: {ref_md5sum}). You may wish to delete the cached file and try again to trigger automatic download.'
 
 
 def _progress_bar(count, total):
@@ -187,6 +182,5 @@ def _get_file_md5sum(file_name):
 
 def _get_reference_md5sum(url):
     """By convention the md5 hash for url is stored in url + '.md5sum'."""
-    url_md5sum = url + '.md5sum'
-    md5sum = urllib.request.urlopen(url_md5sum).read().strip()
-    return md5sum
+    url_md5sum = f'{url}.md5sum'
+    return urllib.request.urlopen(url_md5sum).read().strip()

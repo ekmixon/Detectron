@@ -38,16 +38,15 @@ class AttrDict(dict):
             raise AttributeError(name)
 
     def __setattr__(self, name, value):
-        if not self.__dict__[AttrDict.IMMUTABLE]:
-            if name in self.__dict__:
-                self.__dict__[name] = value
-            else:
-                self[name] = value
-        else:
+        if self.__dict__[AttrDict.IMMUTABLE]:
             raise AttributeError(
-                'Attempted to set "{}" to "{}", but AttrDict is immutable'.
-                format(name, value)
+                f'Attempted to set "{name}" to "{value}", but AttrDict is immutable'
             )
+
+        if name in self.__dict__:
+            self.__dict__[name] = value
+        else:
+            self[name] = value
 
     def immutable(self, is_immutable):
         """Set immutability to is_immutable and recursively apply the setting

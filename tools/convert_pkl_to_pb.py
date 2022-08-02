@@ -161,16 +161,13 @@ def convert_collect_and_distribute(
     rpn_min_level,
     rpn_post_nms_topN,
 ):
-    print(
-        "Converting CollectAndDistributeFpnRpnProposals"
-        " Python -> C++:\n{}".format(op)
-    )
+    print(f"Converting CollectAndDistributeFpnRpnProposals Python -> C++:\n{op}")
     assert op.name.startswith(
         "CollectAndDistributeFpnRpnProposalsOp"
     ), "Not valid CollectAndDistributeFpnRpnProposalsOp"
 
-    inputs = [x for x in op.input]
-    ret = core.CreateOperator(
+    inputs = list(op.input)
+    return core.CreateOperator(
         "CollectAndDistributeFpnRpnProposals",
         inputs,
         list(op.output),
@@ -182,13 +179,12 @@ def convert_collect_and_distribute(
         rpn_min_level=rpn_min_level,
         rpn_post_nms_topN=rpn_post_nms_topN,
     )
-    return ret
 
 
 def convert_gen_proposals(
     op, blobs, rpn_pre_nms_topN, rpn_post_nms_topN, rpn_nms_thresh, rpn_min_size
 ):
-    print("Converting GenerateProposals Python -> C++:\n{}".format(op))
+    print(f"Converting GenerateProposals Python -> C++:\n{op}")
     assert op.name.startswith("GenerateProposalsOp"), "Not valid GenerateProposalsOp"
 
     spatial_scale = mutils.get_op_arg_valf(op, "spatial_scale", None)
@@ -196,8 +192,8 @@ def convert_gen_proposals(
 
     lvl = int(op.input[0][-1]) if op.input[0][-1].isdigit() else None
 
-    inputs = [x for x in op.input]
-    anchor_name = "anchor{}".format(lvl) if lvl else "anchor"
+    inputs = list(op.input)
+    anchor_name = f"anchor{lvl}" if lvl else "anchor"
     inputs.append(anchor_name)
     anchor_sizes = (
         (cfg.FPN.RPN_ANCHOR_START_SIZE * 2.0 ** (lvl - cfg.FPN.RPN_MIN_LEVEL),)
@@ -205,7 +201,7 @@ def convert_gen_proposals(
         else cfg.RPN.SIZES
     )
     blobs[anchor_name] = get_anchors(spatial_scale, anchor_sizes)
-    print("anchors {}".format(blobs[anchor_name]))
+    print(f"anchors {blobs[anchor_name]}")
 
     ret = core.CreateOperator(
         "GenerateProposals",
@@ -222,12 +218,11 @@ def convert_gen_proposals(
 
 
 def get_anchors(spatial_scale, anchor_sizes):
-    anchors = generate_anchors.generate_anchors(
+    return generate_anchors.generate_anchors(
         stride=1.0 / spatial_scale,
         sizes=anchor_sizes,
         aspect_ratios=cfg.RPN.ASPECT_RATIOS,
     ).astype(np.float32)
-    return anchors
 
 
 def reset_blob_names(blobs):
@@ -336,9 +331,6 @@ def convert_net(args, net, blobs):
 
 
 def add_bbox_ops(args, net, blobs):
-    new_ops = []
-    new_external_outputs = []
-
     # Operators for bboxes
     op_box = core.CreateOperator(
         "BBoxTransform",
@@ -348,8 +340,7 @@ def add_bbox_ops(args, net, blobs):
         apply_scale=False,
         correct_transform_coords=True,
     )
-    new_ops.extend([op_box])
-
+    new_ops = [op_box]
     blob_prob = "cls_prob"
     blob_box = "pred_bbox"
     op_nms = core.CreateOperator(
@@ -366,8 +357,7 @@ def add_bbox_ops(args, net, blobs):
         ],
     )
     new_ops.extend([op_nms])
-    new_external_outputs.extend(["score_nms", "bbox_nms", "class_nms"])
-
+    new_external_outputs = ["score_nms", "bbox_nms", "class_nms"]
     net.Proto().op.extend(new_ops)
     net.Proto().external_output.extend(new_external_outputs)
 
@@ -427,21 +417,21 @@ def _save_image_graphs(args, all_net, all_init_net):
     mutils.save_graph(
         all_net.Proto(), os.path.join(args.out_dir, "model_def.png"), op_only=False
     )
-    print("Model def image saved to {}.".format(args.out_dir))
+    print(f"Model def image saved to {args.out_dir}.")
 
 
 def _save_models(all_net, all_init_net, args):
-    print("Writing converted model to {}...".format(args.out_dir))
+    print(f"Writing converted model to {args.out_dir}...")
     fname = "model"
 
     if not os.path.exists(args.out_dir):
         os.makedirs(args.out_dir)
 
-    with open(os.path.join(args.out_dir, fname + ".pb"), "wb") as f:
+    with open(os.path.join(args.out_dir, f"{fname}.pb"), "wb") as f:
         f.write(all_net.Proto().SerializeToString())
-    with open(os.path.join(args.out_dir, fname + ".pbtxt"), "wb") as f:
+    with open(os.path.join(args.out_dir, f"{fname}.pbtxt"), "wb") as f:
         f.write(str(all_net.Proto()))
-    with open(os.path.join(args.out_dir, fname + "_init.pb"), "wb") as f:
+    with open(os.path.join(args.out_dir, f"{fname}_init.pb"), "wb") as f:
         f.write(all_init_net.Proto().SerializeToString())
 
     _save_image_graphs(args, all_net, all_init_net)
@@ -458,11 +448,7 @@ def _get_result_blobs(check_blobs):
     ret = {}
     for x in check_blobs:
         sn = core.ScopedName(x)
-        if workspace.HasBlob(sn):
-            ret[x] = workspace.FetchBlob(sn)
-        else:
-            ret[x] = None
-
+        ret[x] = workspace.FetchBlob(sn) if workspace.HasBlob(sn) else None
     return ret
 
 
@@ -522,8 +508,8 @@ def _prepare_blobs(im, pixel_means, target_size, max_size):
     im -= pixel_means
     im_shape = im.shape
 
-    im_size_min = np.min(im_shape[0:2])
-    im_size_max = np.max(im_shape[0:2])
+    im_size_min = np.min(im_shape[:2])
+    im_size_max = np.max(im_shape[:2])
     im_scale = float(target_size) / float(im_size_min)
     if np.round(im_scale * im_size_max) > max_size:
         im_scale = float(max_size) / float(im_size_max)
@@ -534,12 +520,12 @@ def _prepare_blobs(im, pixel_means, target_size, max_size):
     # Reuse code in blob_utils and fit FPN
     blob = blob_utils.im_list_to_blob([im])
 
-    blobs = {}
-    blobs["data"] = blob
-    blobs["im_info"] = np.array(
-        [[blob.shape[2], blob.shape[3], im_scale]], dtype=np.float32
-    )
-    return blobs
+    return {
+        "data": blob,
+        "im_info": np.array(
+            [[blob.shape[2], blob.shape[3], im_scale]], dtype=np.float32
+        ),
+    }
 
 
 def run_model_pb(args, net, init_net, im, check_blobs):
@@ -550,9 +536,7 @@ def run_model_pb(args, net, init_net, im, check_blobs):
 
     # input_blobs, _ = core_test._get_blobs(im, None)
     input_blobs = _prepare_blobs(im, cfg.PIXEL_MEANS, cfg.TEST.SCALE, cfg.TEST.MAX_SIZE)
-    gpu_blobs = []
-    if args.device == "gpu":
-        gpu_blobs = ["data"]
+    gpu_blobs = ["data"] if args.device == "gpu" else []
     for k, v in input_blobs.items():
         workspace.FeedBlob(
             core.ScopedName(k),
@@ -568,7 +552,7 @@ def run_model_pb(args, net, init_net, im, check_blobs):
         classids = workspace.FetchBlob("class_nms")
         boxes = workspace.FetchBlob("bbox_nms")
     except Exception as e:
-        print("Running pb model failed.\n{}".format(e))
+        print(f"Running pb model failed.\n{e}")
         # may not detect anything at all
         R = 0
         scores = np.zeros((R,), dtype=np.float32)
@@ -584,9 +568,7 @@ def run_model_pb(args, net, init_net, im, check_blobs):
     workspace.FeedBlob("result_boxes", boxes)
     workspace.FeedBlob("result_classids", classids)
 
-    ret = _get_result_blobs(check_blobs)
-
-    return ret
+    return _get_result_blobs(check_blobs)
 
 
 def verify_model(args, model_pb, test_img_file):
@@ -620,7 +602,7 @@ def _export_to_logfiledb(args, net, init_net, inputs, out_file, extra_out_tensor
         net_type=net_type,
     )
 
-    logger.info("Exporting Caffe2 model to {}".format(out_file))
+    logger.info(f"Exporting Caffe2 model to {out_file}")
     predictor_exporter.save_to_db(
         db_type="log_file_db",
         db_destination=out_file,
@@ -681,7 +663,7 @@ def main():
         [net, init_net] = convert_model_gpu(args, net, init_net)
 
     net.Proto().name = args.net_name
-    init_net.Proto().name = args.net_name + "_init"
+    init_net.Proto().name = f"{args.net_name}_init"
 
     if args.test_img is not None:
         verify_model(args, [net, init_net], args.test_img)

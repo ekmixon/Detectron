@@ -133,9 +133,9 @@ def add_fpn(model, fpn_level_info):
 
     lateral_input_blobs = fpn_level_info.blobs[:num_backbone_stages]
     output_blobs = [
-        'fpn_inner_{}'.format(s)
-        for s in fpn_level_info.blobs[:num_backbone_stages]
+        f'fpn_inner_{s}' for s in fpn_level_info.blobs[:num_backbone_stages]
     ]
+
     fpn_dim_lateral = fpn_level_info.dims
     xavier_fill = ('XavierFill', {})
 
@@ -191,7 +191,7 @@ def add_fpn(model, fpn_level_info):
             # use GroupNorm
             fpn_blob = model.ConvGN(
                 output_blobs[i],
-                'fpn_{}'.format(fpn_level_info.blobs[i]),
+                f'fpn_{fpn_level_info.blobs[i]}',
                 dim_in=fpn_dim,
                 dim_out=fpn_dim,
                 group_gn=get_group_gn(fpn_dim),
@@ -199,20 +199,22 @@ def add_fpn(model, fpn_level_info):
                 pad=1,
                 stride=1,
                 weight_init=xavier_fill,
-                bias_init=const_fill(0.0)
+                bias_init=const_fill(0.0),
             )
+
         else:
             fpn_blob = model.Conv(
                 output_blobs[i],
-                'fpn_{}'.format(fpn_level_info.blobs[i]),
+                f'fpn_{fpn_level_info.blobs[i]}',
                 dim_in=fpn_dim,
                 dim_out=fpn_dim,
                 kernel=3,
                 pad=1,
                 stride=1,
                 weight_init=xavier_fill,
-                bias_init=const_fill(0.0)
+                bias_init=const_fill(0.0),
             )
+
         blobs_fpn += [fpn_blob]
         spatial_scales += [fpn_level_info.spatial_scales[i]]
 
@@ -224,7 +226,7 @@ def add_fpn(model, fpn_level_info):
     if not cfg.FPN.EXTRA_CONV_LEVELS and max_level == HIGHEST_BACKBONE_LVL + 1:
         # Original FPN P6 level implementation from our CVPR'17 FPN paper
         P6_blob_in = blobs_fpn[0]
-        P6_name = P6_blob_in + '_subsampled_2x'
+        P6_name = f'{P6_blob_in}_subsampled_2x'
         # Use max pooling to simulate stride 2 subsampling
         P6_blob = model.MaxPool(P6_blob_in, P6_name, kernel=1, pad=0, stride=2)
         blobs_fpn.insert(0, P6_blob)
@@ -237,18 +239,19 @@ def add_fpn(model, fpn_level_info):
         for i in range(HIGHEST_BACKBONE_LVL + 1, max_level + 1):
             fpn_blob_in = fpn_blob
             if i > HIGHEST_BACKBONE_LVL + 1:
-                fpn_blob_in = model.Relu(fpn_blob, fpn_blob + '_relu')
+                fpn_blob_in = model.Relu(fpn_blob, f'{fpn_blob}_relu')
             fpn_blob = model.Conv(
                 fpn_blob_in,
-                'fpn_' + str(i),
+                f'fpn_{str(i)}',
                 dim_in=dim_in,
                 dim_out=fpn_dim,
                 kernel=3,
                 pad=1,
                 stride=2,
                 weight_init=xavier_fill,
-                bias_init=const_fill(0.0)
+                bias_init=const_fill(0.0),
             )
+
             dim_in = fpn_dim
             blobs_fpn.insert(0, fpn_blob)
             spatial_scales.insert(0, spatial_scales[0] * 0.5)
@@ -265,7 +268,7 @@ def add_topdown_lateral_module(
         # use GroupNorm
         lat = model.ConvGN(
             fpn_lateral,
-            fpn_bottom + '_lateral',
+            f'{fpn_bottom}_lateral',
             dim_in=dim_lateral,
             dim_out=dim_top,
             group_gn=get_group_gn(dim_top),
@@ -273,14 +276,17 @@ def add_topdown_lateral_module(
             pad=0,
             stride=1,
             weight_init=(
-                const_fill(0.0) if cfg.FPN.ZERO_INIT_LATERAL
-                else ('XavierFill', {})),
-            bias_init=const_fill(0.0)
+                const_fill(0.0)
+                if cfg.FPN.ZERO_INIT_LATERAL
+                else ('XavierFill', {})
+            ),
+            bias_init=const_fill(0.0),
         )
+
     else:
         lat = model.Conv(
             fpn_lateral,
-            fpn_bottom + '_lateral',
+            f'{fpn_bottom}_lateral',
             dim_in=dim_lateral,
             dim_out=dim_top,
             kernel=1,
@@ -288,12 +294,14 @@ def add_topdown_lateral_module(
             stride=1,
             weight_init=(
                 const_fill(0.0)
-                if cfg.FPN.ZERO_INIT_LATERAL else ('XavierFill', {})
+                if cfg.FPN.ZERO_INIT_LATERAL
+                else ('XavierFill', {})
             ),
-            bias_init=const_fill(0.0)
+            bias_init=const_fill(0.0),
         )
+
     # Top-down 2x upsampling
-    td = model.net.UpsampleNearest(fpn_top, fpn_bottom + '_topdown', scale=2)
+    td = model.net.UpsampleNearest(fpn_top, f'{fpn_bottom}_topdown', scale=2)
     # Sum lateral and top-down
     model.net.Sum([lat, td], fpn_bottom)
 
@@ -340,80 +348,86 @@ def add_fpn_rpn_outputs(model, blobs_in, dim_in, spatial_scales):
             # RPN hidden representation
             conv_rpn_fpn = model.Conv(
                 bl_in,
-                'conv_rpn_fpn' + slvl,
+                f'conv_rpn_fpn{slvl}',
                 dim_in,
                 dim_out,
                 kernel=3,
                 pad=1,
                 stride=1,
                 weight_init=gauss_fill(0.01),
-                bias_init=const_fill(0.0)
+                bias_init=const_fill(0.0),
             )
+
             model.Relu(conv_rpn_fpn, conv_rpn_fpn)
             # Proposal classification scores
             rpn_cls_logits_fpn = model.Conv(
                 conv_rpn_fpn,
-                'rpn_cls_logits_fpn' + slvl,
+                f'rpn_cls_logits_fpn{slvl}',
                 dim_in,
                 num_anchors,
                 kernel=1,
                 pad=0,
                 stride=1,
                 weight_init=gauss_fill(0.01),
-                bias_init=const_fill(0.0)
+                bias_init=const_fill(0.0),
             )
+
             # Proposal bbox regression deltas
             rpn_bbox_pred_fpn = model.Conv(
                 conv_rpn_fpn,
-                'rpn_bbox_pred_fpn' + slvl,
+                f'rpn_bbox_pred_fpn{slvl}',
                 dim_in,
                 4 * num_anchors,
                 kernel=1,
                 pad=0,
                 stride=1,
                 weight_init=gauss_fill(0.01),
-                bias_init=const_fill(0.0)
+                bias_init=const_fill(0.0),
             )
+
         else:
             # Share weights and biases
             sk_min = str(k_min)
             # RPN hidden representation
             conv_rpn_fpn = model.ConvShared(
                 bl_in,
-                'conv_rpn_fpn' + slvl,
+                f'conv_rpn_fpn{slvl}',
                 dim_in,
                 dim_out,
                 kernel=3,
                 pad=1,
                 stride=1,
-                weight='conv_rpn_fpn' + sk_min + '_w',
-                bias='conv_rpn_fpn' + sk_min + '_b'
+                weight=f'conv_rpn_fpn{sk_min}_w',
+                bias=f'conv_rpn_fpn{sk_min}_b',
             )
+
             model.Relu(conv_rpn_fpn, conv_rpn_fpn)
             # Proposal classification scores
             rpn_cls_logits_fpn = model.ConvShared(
                 conv_rpn_fpn,
-                'rpn_cls_logits_fpn' + slvl,
+                f'rpn_cls_logits_fpn{slvl}',
                 dim_in,
                 num_anchors,
                 kernel=1,
                 pad=0,
                 stride=1,
-                weight='rpn_cls_logits_fpn' + sk_min + '_w',
-                bias='rpn_cls_logits_fpn' + sk_min + '_b'
+                weight=f'rpn_cls_logits_fpn{sk_min}_w',
+                bias=f'rpn_cls_logits_fpn{sk_min}_b',
             )
+
             # Proposal bbox regression deltas
             rpn_bbox_pred_fpn = model.ConvShared(
                 conv_rpn_fpn,
-                'rpn_bbox_pred_fpn' + slvl,
+                f'rpn_bbox_pred_fpn{slvl}',
                 dim_in,
                 4 * num_anchors,
                 kernel=1,
                 pad=0,
                 stride=1,
-                weight='rpn_bbox_pred_fpn' + sk_min + '_w',
-                bias='rpn_bbox_pred_fpn' + sk_min + '_b'
+                weight=f'rpn_bbox_pred_fpn{sk_min}_w',
+                bias=f'rpn_bbox_pred_fpn{sk_min}_b',
             )
+
 
         if not model.train or cfg.MODEL.FASTER_RCNN:
             # Proposals are needed during:
@@ -427,13 +441,14 @@ def add_fpn_rpn_outputs(model, blobs_in, dim_in, spatial_scales):
                 aspect_ratios=cfg.FPN.RPN_ASPECT_RATIOS
             )
             rpn_cls_probs_fpn = model.net.Sigmoid(
-                rpn_cls_logits_fpn, 'rpn_cls_probs_fpn' + slvl
+                rpn_cls_logits_fpn, f'rpn_cls_probs_fpn{slvl}'
             )
+
             model.GenerateProposals(
                 [rpn_cls_probs_fpn, rpn_bbox_pred_fpn, 'im_info'],
-                ['rpn_rois_fpn' + slvl, 'rpn_roi_probs_fpn' + slvl],
+                [f'rpn_rois_fpn{slvl}', f'rpn_roi_probs_fpn{slvl}'],
                 anchors=lvl_anchors,
-                spatial_scale=sc
+                spatial_scale=sc,
             )
 
 
@@ -523,13 +538,11 @@ def add_multilevel_roi_blobs(
     rois_stacked = np.zeros((0, 5), dtype=np.float32)  # for assert
     for lvl in range(lvl_min, lvl_max + 1):
         idx_lvl = np.where(target_lvls == lvl)[0]
-        blobs[blob_prefix + '_fpn' + str(lvl)] = rois[idx_lvl, :]
+        blobs[f'{blob_prefix}_fpn{str(lvl)}'] = rois[idx_lvl, :]
         rois_idx_order = np.concatenate((rois_idx_order, idx_lvl))
-        rois_stacked = np.vstack(
-            [rois_stacked, blobs[blob_prefix + '_fpn' + str(lvl)]]
-        )
+        rois_stacked = np.vstack([rois_stacked, blobs[f'{blob_prefix}_fpn{str(lvl)}']])
     rois_idx_restore = np.argsort(rois_idx_order).astype(np.int32, copy=False)
-    blobs[blob_prefix + '_idx_restore_int32'] = rois_idx_restore
+    blobs[f'{blob_prefix}_idx_restore_int32'] = rois_idx_restore
     # Sanity check that restore order is correct
     assert (rois_stacked[rois_idx_restore] == rois).all()
 

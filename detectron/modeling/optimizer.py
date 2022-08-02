@@ -60,7 +60,7 @@ def _build_forward_graph(model, single_gpu_build_func):
     # Build the model on each GPU with correct name and device scoping
     for gpu_id in range(cfg.NUM_GPUS):
         with c2_utils.NamedCudaScope(gpu_id):
-            all_loss_gradients.update(single_gpu_build_func(model))
+            all_loss_gradients |= single_gpu_build_func(model)
     return all_loss_gradients
 
 
@@ -76,11 +76,9 @@ def _add_allreduce_graph(model):
     with c2_utils.CudaScope(0):
         # Iterate over distinct parameter blobs
         for i in range(params_per_gpu):
-            # Gradients from all GPUs for this parameter blob
-            gradients = [
+            if gradients := [
                 model.param_to_grad[p] for p in all_params[i::params_per_gpu]
-            ]
-            if len(gradients) > 0:
+            ]:
                 if cfg.USE_NCCL:
                     model.net.NCCLAllreduce(gradients, gradients)
                 else:
@@ -104,12 +102,13 @@ def add_single_gpu_param_update_ops(model, gpu_id):
         [], 'wd_gn', shape=[1], value=cfg.SOLVER.WEIGHT_DECAY_GN
     )
     for param in model.TrainableParams(gpu_id=gpu_id):
-        logger.debug('param ' + str(param) + ' will be updated')
+        logger.debug(f'param {str(param)} will be updated')
         param_grad = model.param_to_grad[param]
         # Initialize momentum vector
         param_momentum = model.param_init_net.ConstantFill(
-            [param], param + '_momentum', value=0.0
+            [param], f'{param}_momentum', value=0.0
         )
+
         if param in model.biases:
             # Special treatment for biases (mainly to match historical impl.
             # details):

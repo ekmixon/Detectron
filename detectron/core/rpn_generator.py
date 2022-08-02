@@ -91,11 +91,11 @@ def multi_gpu_generate_rpn_on_dataset(
     # Retrieve the test_net binary path
     binary_dir = envu.get_runtime_dir()
     binary_ext = envu.get_py_bin_ext()
-    binary = os.path.join(binary_dir, 'test_net' + binary_ext)
-    assert os.path.exists(binary), 'Binary \'{}\' not found'.format(binary)
+    binary = os.path.join(binary_dir, f'test_net{binary_ext}')
+    assert os.path.exists(binary), f"Binary \'{binary}\' not found"
 
     # Pass the target dataset via the command line
-    opts = ['TEST.DATASETS', '("{}",)'.format(dataset_name)]
+    opts = ['TEST.DATASETS', f'("{dataset_name}",)']
     opts += ['TEST.WEIGHTS', weights_file]
 
     # Run inference in parallel in subprocesses
@@ -114,7 +114,7 @@ def multi_gpu_generate_rpn_on_dataset(
     save_object(
         dict(boxes=boxes, scores=scores, ids=ids, cfg=cfg_yaml), rpn_file
     )
-    logger.info('Wrote RPN proposals to {}'.format(os.path.abspath(rpn_file)))
+    logger.info(f'Wrote RPN proposals to {os.path.abspath(rpn_file)}')
     return boxes, scores, ids, rpn_file
 
 
@@ -163,7 +163,7 @@ def generate_rpn_on_range(
     save_object(
         dict(boxes=boxes, scores=scores, ids=ids, cfg=cfg_yaml), rpn_file
     )
-    logger.info('Wrote RPN proposals to {}'.format(os.path.abspath(rpn_file)))
+    logger.info(f'Wrote RPN proposals to {os.path.abspath(rpn_file)}')
     return boxes, scores, ids, rpn_file
 
 
@@ -218,13 +218,15 @@ def im_proposals(model, im):
         k_max = cfg.FPN.RPN_MAX_LEVEL
         k_min = cfg.FPN.RPN_MIN_LEVEL
         rois_names = [
-            core.ScopedName('rpn_rois_fpn' + str(l))
+            core.ScopedName(f'rpn_rois_fpn{str(l)}')
             for l in range(k_min, k_max + 1)
         ]
+
         score_names = [
-            core.ScopedName('rpn_roi_probs_fpn' + str(l))
+            core.ScopedName(f'rpn_roi_probs_fpn{str(l)}')
             for l in range(k_min, k_max + 1)
         ]
+
         blobs = workspace.FetchBlobs(rois_names + score_names)
         # Combine predictions across all levels and retain the top scoring
         boxes = np.concatenate(blobs[:len(rois_names)])

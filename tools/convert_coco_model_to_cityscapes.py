@@ -58,22 +58,18 @@ def parse_args():
         parser.print_help()
         sys.exit(1)
 
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 
 def convert_coco_blobs_to_cityscape_blobs(model_dict):
     for k, v in model_dict['blobs'].items():
-        if v.shape[0] == NUM_COCO_CLS or v.shape[0] == 4 * NUM_COCO_CLS:
+        if v.shape[0] in [NUM_COCO_CLS, 4 * NUM_COCO_CLS]:
             coco_blob = model_dict['blobs'][k]
-            print(
-                'Converting COCO blob {} with shape {}'.
-                format(k, coco_blob.shape)
-            )
+            print(f'Converting COCO blob {k} with shape {coco_blob.shape}')
             cs_blob = convert_coco_blob_to_cityscapes_blob(
                 coco_blob, args.convert_func
             )
-            print(' -> converted shape {}'.format(cs_blob.shape))
+            print(f' -> converted shape {cs_blob.shape}')
             model_dict['blobs'][k] = cs_blob
 
 
@@ -82,7 +78,7 @@ def convert_coco_blob_to_cityscapes_blob(coco_blob, convert_func):
     coco_shape = coco_blob.shape
     leading_factor = int(coco_shape[0] / NUM_COCO_CLS)
     tail_shape = list(coco_shape[1:])
-    assert leading_factor == 1 or leading_factor == 4
+    assert leading_factor in {1, 4}
 
     # Reshape in [num_classes, ...] form for easier manipulations
     coco_blob = coco_blob.reshape([NUM_COCO_CLS, -1] + tail_shape)
@@ -124,5 +120,5 @@ if __name__ == '__main__':
     weights = load_and_convert_coco_model(args)
 
     save_object(weights, args.out_file_name)
-    print('Wrote blobs to {}:'.format(args.out_file_name))
+    print(f'Wrote blobs to {args.out_file_name}:')
     print(sorted(weights['blobs'].keys()))

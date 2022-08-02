@@ -68,8 +68,7 @@ def parse_args():
         parser.print_help()
         sys.exit(1)
 
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 
 def normalize_resnet_name(name):
@@ -79,12 +78,14 @@ def normalize_resnet_name(name):
         #  res2a_branch1 -> res2_0_branch1
         chunk = name[len('res'):name.find('_')]
         name = (
-            'res' + chunk[0] + '_' + str(
-                int(chunk[2:]) if len(chunk) > 2  # e.g., "b1" -> 1
+            f'res{chunk[0]}_'
+            + str(
+                int(chunk[2:])
+                if len(chunk) > 2  # e.g., "b1" -> 1
                 else ord(chunk[1]) - ord('a')
-            ) +  # e.g., "a" -> 0
-            name[name.find('_'):]
-        )
+            )
+        ) + name[name.find('_') :]
+
     return name
 
 
@@ -136,7 +137,7 @@ def remove_spatial_bn_layers(caffenet, caffenet_weights):
         return t
 
     bn_tensors = []
-    for (bn, scl) in zip(bn_layers[0::2], bn_layers[1::2]):
+    for (bn, scl) in zip(bn_layers[::2], bn_layers[1::2]):
         assert bn.name[len('bn'):] == scl.name[len('scale'):], 'Pair mismatch'
         blob_out = 'res' + bn.name[len('bn'):] + '_bn'
         bn_mean = np.asarray(bn.blobs[0].data)
@@ -147,11 +148,10 @@ def remove_spatial_bn_layers(caffenet, caffenet_weights):
         new_scale = scale / std
         new_bias = bias - bn_mean * scale / std
         new_scale_tensor = _create_tensor(
-            new_scale, bn.blobs[0].shape, blob_out + '_s'
+            new_scale, bn.blobs[0].shape, f'{blob_out}_s'
         )
-        new_bias_tensor = _create_tensor(
-            new_bias, bn.blobs[0].shape, blob_out + '_b'
-        )
+
+        new_bias_tensor = _create_tensor(new_bias, bn.blobs[0].shape, f'{blob_out}_b')
         bn_tensors.extend([new_scale_tensor, new_bias_tensor])
     return bn_tensors
 
@@ -168,7 +168,7 @@ def remove_layers_without_parameters(caffenet, caffenet_weights):
                     found = True
                     break
             if not found and name[-len('_split'):] != '_split':
-                print('Warning: layer {} not found in caffenet'.format(name))
+                print(f'Warning: layer {name} not found in caffenet')
             caffenet_weights.layer.pop(i)
 
 

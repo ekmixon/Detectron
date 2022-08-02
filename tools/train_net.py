@@ -100,9 +100,9 @@ def main():
         merge_cfg_from_list(args.opts)
     assert_and_infer_cfg()
     smi_output, cuda_ver, cudnn_ver = c2_utils.get_nvidia_info()
-    logger.info("cuda version : {}".format(cuda_ver))
-    logger.info("cudnn version: {}".format(cudnn_ver))
-    logger.info("nvidia-smi output:\n{}".format(smi_output))
+    logger.info(f"cuda version : {cuda_ver}")
+    logger.info(f"cudnn version: {cudnn_ver}")
+    logger.info(f"nvidia-smi output:\n{smi_output}")
     logger.info('Training with config:')
     logger.info(pprint.pformat(cfg))
     # Note that while we set the numpy random seed network training will not be

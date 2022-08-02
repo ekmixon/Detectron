@@ -134,11 +134,18 @@ def add_roi_Xconv1fc_head(model, blob_in, dim_in, spatial_scale):
     current = roi_feat
     for i in range(cfg.FAST_RCNN.NUM_STACKED_CONVS):
         current = model.Conv(
-            current, 'head_conv' + str(i + 1), dim_in, hidden_dim, 3,
-            stride=1, pad=1,
+            current,
+            f'head_conv{str(i + 1)}',
+            dim_in,
+            hidden_dim,
+            3,
+            stride=1,
+            pad=1,
             weight_init=('MSRAFill', {}),
-            bias_init=('ConstantFill', {'value': 0.}),
-            no_bias=0)
+            bias_init=('ConstantFill', {'value': 0.0}),
+            no_bias=0,
+        )
+
         current = model.Relu(current, current)
         dim_in = hidden_dim
 
@@ -164,11 +171,18 @@ def add_roi_Xconv1fc_gn_head(model, blob_in, dim_in, spatial_scale):
     current = roi_feat
     for i in range(cfg.FAST_RCNN.NUM_STACKED_CONVS):
         current = model.ConvGN(
-            current, 'head_conv' + str(i + 1), dim_in, hidden_dim, 3,
+            current,
+            f'head_conv{str(i + 1)}',
+            dim_in,
+            hidden_dim,
+            3,
             group_gn=get_group_gn(hidden_dim),
-            stride=1, pad=1,
+            stride=1,
+            pad=1,
             weight_init=('MSRAFill', {}),
-            bias_init=('ConstantFill', {'value': 0.}))
+            bias_init=('ConstantFill', {'value': 0.0}),
+        )
+
         current = model.Relu(current, current)
         dim_in = hidden_dim
 

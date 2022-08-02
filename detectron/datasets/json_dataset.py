@@ -52,13 +52,16 @@ class JsonDataset(object):
     """A class representing a COCO json dataset."""
 
     def __init__(self, name):
-        assert dataset_catalog.contains(name), \
-            'Unknown dataset name: {}'.format(name)
-        assert os.path.exists(dataset_catalog.get_im_dir(name)), \
-            'Im dir \'{}\' not found'.format(dataset_catalog.get_im_dir(name))
-        assert os.path.exists(dataset_catalog.get_ann_fn(name)), \
-            'Ann fn \'{}\' not found'.format(dataset_catalog.get_ann_fn(name))
-        logger.debug('Creating: {}'.format(name))
+        assert dataset_catalog.contains(name), f'Unknown dataset name: {name}'
+        assert os.path.exists(
+            dataset_catalog.get_im_dir(name)
+        ), f"Im dir \'{dataset_catalog.get_im_dir(name)}\' not found"
+
+        assert os.path.exists(
+            dataset_catalog.get_ann_fn(name)
+        ), f"Ann fn \'{dataset_catalog.get_ann_fn(name)}\' not found"
+
+        logger.debug(f'Creating: {name}')
         self.name = name
         self.image_directory = dataset_catalog.get_im_dir(name)
         self.image_prefix = dataset_catalog.get_im_prefix(name)
@@ -133,7 +136,7 @@ class JsonDataset(object):
         im_path = os.path.join(
             self.image_directory, self.image_prefix + entry['file_name']
         )
-        assert os.path.exists(im_path), 'Image \'{}\' not found'.format(im_path)
+        assert os.path.exists(im_path), f"Image \'{im_path}\' not found"
         entry['image'] = im_path
         entry['flipped'] = False
         entry['has_visible_keypoints'] = False
@@ -250,7 +253,7 @@ class JsonDataset(object):
         self, roidb, proposal_file, min_proposal_size, top_k, crowd_thresh
     ):
         """Add proposals from a proposals file to an roidb."""
-        logger.info('Loading proposals from: {}'.format(proposal_file))
+        logger.info(f'Loading proposals from: {proposal_file}')
         proposals = load_object(proposal_file)
 
         id_field = 'indexes' if 'indexes' in proposals else 'ids'  # compat fix
@@ -313,7 +316,7 @@ class JsonDataset(object):
         if 'keypoints' not in obj:
             return None
         kp = np.array(obj['keypoints'])
-        x = kp[0::3]  # 0-indexed x coordinates
+        x = kp[::3]
         y = kp[1::3]  # 0-indexed y coordinates
         # 0: not labeled; 1: labeled, not inside mask;
         # 2: labeled and inside mask

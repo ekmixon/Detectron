@@ -200,12 +200,16 @@ def im_detect_bbox_aug(model, im, box_proposals=None):
     """
     assert not cfg.TEST.BBOX_AUG.SCALE_SIZE_DEP, \
         'Size dependent scaling not implemented'
-    assert not cfg.TEST.BBOX_AUG.SCORE_HEUR == 'UNION' or \
-        cfg.TEST.BBOX_AUG.COORD_HEUR == 'UNION', \
-        'Coord heuristic must be union whenever score heuristic is union'
-    assert not cfg.TEST.BBOX_AUG.COORD_HEUR == 'UNION' or \
-        cfg.TEST.BBOX_AUG.SCORE_HEUR == 'UNION', \
-        'Score heuristic must be union whenever coord heuristic is union'
+    assert (
+        cfg.TEST.BBOX_AUG.SCORE_HEUR != 'UNION'
+        or cfg.TEST.BBOX_AUG.COORD_HEUR == 'UNION'
+    ), 'Coord heuristic must be union whenever score heuristic is union'
+
+    assert (
+        cfg.TEST.BBOX_AUG.COORD_HEUR != 'UNION'
+        or cfg.TEST.BBOX_AUG.SCORE_HEUR == 'UNION'
+    ), 'Score heuristic must be union whenever coord heuristic is union'
+
     assert not cfg.MODEL.FASTER_RCNN or \
         cfg.TEST.BBOX_AUG.SCORE_HEUR == 'UNION', \
         'Union heuristic must be used to combine Faster RCNN predictions'
@@ -301,10 +305,11 @@ def im_detect_bbox_hflip(
     im_hf = im[:, ::-1, :]
     im_width = im.shape[1]
 
-    if not cfg.MODEL.FASTER_RCNN:
-        box_proposals_hf = box_utils.flip_boxes(box_proposals, im_width)
-    else:
-        box_proposals_hf = None
+    box_proposals_hf = (
+        None
+        if cfg.MODEL.FASTER_RCNN
+        else box_utils.flip_boxes(box_proposals, im_width)
+    )
 
     scores_hf, boxes_hf, im_scale = im_detect_bbox(
         model, im_hf, target_scale, target_max_size, boxes=box_proposals_hf
@@ -342,10 +347,11 @@ def im_detect_bbox_aspect_ratio(
     # Compute predictions on the transformed image
     im_ar = image_utils.aspect_ratio_rel(im, aspect_ratio)
 
-    if not cfg.MODEL.FASTER_RCNN:
-        box_proposals_ar = box_utils.aspect_ratio(box_proposals, aspect_ratio)
-    else:
-        box_proposals_ar = None
+    box_proposals_ar = (
+        None
+        if cfg.MODEL.FASTER_RCNN
+        else box_utils.aspect_ratio(box_proposals, aspect_ratio)
+    )
 
     if hflip:
         scores_ar, boxes_ar, _ = im_detect_bbox_hflip(
@@ -497,10 +503,7 @@ def im_detect_mask_hflip(model, im, target_scale, target_max_size, boxes):
     im_scale = im_conv_body_only(model, im_hf, target_scale, target_max_size)
     masks_hf = im_detect_mask(model, im_scale, boxes_hf)
 
-    # Invert the predicted soft masks
-    masks_inv = masks_hf[:, :, :, ::-1]
-
-    return masks_inv
+    return masks_hf[:, :, :, ::-1]
 
 
 def im_detect_mask_scale(
@@ -508,13 +511,12 @@ def im_detect_mask_scale(
 ):
     """Computes masks at the given scale."""
     if hflip:
-        masks_scl = im_detect_mask_hflip(
+        return im_detect_mask_hflip(
             model, im, target_scale, target_max_size, boxes
         )
-    else:
-        im_scale = im_conv_body_only(model, im, target_scale, target_max_size)
-        masks_scl = im_detect_mask(model, im_scale, boxes)
-    return masks_scl
+
+    im_scale = im_conv_body_only(model, im, target_scale, target_max_size)
+    return im_detect_mask(model, im_scale, boxes)
 
 
 def im_detect_mask_aspect_ratio(model, im, aspect_ratio, boxes, hflip=False):
@@ -525,16 +527,14 @@ def im_detect_mask_aspect_ratio(model, im, aspect_ratio, boxes, hflip=False):
     boxes_ar = box_utils.aspect_ratio(boxes, aspect_ratio)
 
     if hflip:
-        masks_ar = im_detect_mask_hflip(
+        return im_detect_mask_hflip(
             model, im_ar, cfg.TEST.SCALE, cfg.TEST.MAX_SIZE, boxes_ar
         )
-    else:
-        im_scale = im_conv_body_only(
-            model, im_ar, cfg.TEST.SCALE, cfg.TEST.MAX_SIZE
-        )
-        masks_ar = im_detect_mask(model, im_scale, boxes_ar)
 
-    return masks_ar
+    im_scale = im_conv_body_only(
+        model, im_ar, cfg.TEST.SCALE, cfg.TEST.MAX_SIZE
+    )
+    return im_detect_mask(model, im_scale, boxes_ar)
 
 
 def im_detect_keypoints(model, im_scale, boxes):
@@ -676,10 +676,7 @@ def im_detect_keypoints_hflip(model, im, target_scale, target_max_size, boxes):
     im_scale = im_conv_body_only(model, im_hf, target_scale, target_max_size)
     heatmaps_hf = im_detect_keypoints(model, im_scale, boxes_hf)
 
-    # Invert the predicted keypoints
-    heatmaps_inv = keypoint_utils.flip_heatmaps(heatmaps_hf)
-
-    return heatmaps_inv
+    return keypoint_utils.flip_heatmaps(heatmaps_hf)
 
 
 def im_detect_keypoints_scale(
@@ -687,13 +684,12 @@ def im_detect_keypoints_scale(
 ):
     """Computes keypoint predictions at the given scale."""
     if hflip:
-        heatmaps_scl = im_detect_keypoints_hflip(
+        return im_detect_keypoints_hflip(
             model, im, target_scale, target_max_size, boxes
         )
-    else:
-        im_scale = im_conv_body_only(model, im, target_scale, target_max_size)
-        heatmaps_scl = im_detect_keypoints(model, im_scale, boxes)
-    return heatmaps_scl
+
+    im_scale = im_conv_body_only(model, im, target_scale, target_max_size)
+    return im_detect_keypoints(model, im_scale, boxes)
 
 
 def im_detect_keypoints_aspect_ratio(
@@ -706,22 +702,22 @@ def im_detect_keypoints_aspect_ratio(
     boxes_ar = box_utils.aspect_ratio(boxes, aspect_ratio)
 
     if hflip:
-        heatmaps_ar = im_detect_keypoints_hflip(
+        return im_detect_keypoints_hflip(
             model, im_ar, cfg.TEST.SCALE, cfg.TEST.MAX_SIZE, boxes_ar
         )
-    else:
-        im_scale = im_conv_body_only(
-            model, im_ar, cfg.TEST.SCALE, cfg.TEST.MAX_SIZE
-        )
-        heatmaps_ar = im_detect_keypoints(model, im_scale, boxes_ar)
 
-    return heatmaps_ar
+    im_scale = im_conv_body_only(
+        model, im_ar, cfg.TEST.SCALE, cfg.TEST.MAX_SIZE
+    )
+    return im_detect_keypoints(model, im_scale, boxes_ar)
 
 
 def combine_heatmaps_size_dep(hms_ts, ds_ts, us_ts, boxes, heur_f):
     """Combines heatmaps while taking object sizes into account."""
-    assert len(hms_ts) == len(ds_ts) and len(ds_ts) == len(us_ts), \
-        'All sets of hms must be tagged with downscaling and upscaling flags'
+    assert (
+        len(hms_ts) == len(ds_ts) == len(us_ts)
+    ), 'All sets of hms must be tagged with downscaling and upscaling flags'
+
 
     # Classify objects into small+medium and large based on their box areas
     areas = box_utils.boxes_area(boxes)

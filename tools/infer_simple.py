@@ -136,15 +136,16 @@ def main(args):
     dummy_coco_dataset = dummy_datasets.get_coco_dataset()
 
     if os.path.isdir(args.im_or_folder):
-        im_list = glob.iglob(args.im_or_folder + '/*.' + args.image_ext)
+        im_list = glob.iglob(f'{args.im_or_folder}/*.{args.image_ext}')
     else:
         im_list = [args.im_or_folder]
 
     for i, im_name in enumerate(im_list):
         out_name = os.path.join(
-            args.output_dir, '{}'.format(os.path.basename(im_name) + '.' + args.output_ext)
+            args.output_dir, f'{os.path.basename(im_name)}.{args.output_ext}'
         )
-        logger.info('Processing {} -> {}'.format(im_name, out_name))
+
+        logger.info(f'Processing {im_name} -> {out_name}')
         im = cv2.imread(im_name)
         timers = defaultdict(Timer)
         t = time.time()

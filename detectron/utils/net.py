@@ -57,7 +57,7 @@ def initialize_gpu_from_weights_file(model, weights_file, gpu_id=0):
     automatically map logical GPU ids (starting from 0) to the physical GPUs
     specified in CUDA_VISIBLE_DEVICES.
     """
-    logger.info('Loading weights from: {}'.format(weights_file))
+    logger.info(f'Loading weights from: {weights_file}')
     ws_blobs = workspace.Blobs()
     src_blobs = load_object(weights_file)
 
@@ -89,7 +89,7 @@ def initialize_gpu_from_weights_file(model, weights_file, gpu_id=0):
                 logger.info('{:s} not found'.format(src_name))
                 continue
             dst_name = core.ScopedName(unscoped_param_name)
-            has_momentum = src_name + '_momentum' in src_blobs
+            has_momentum = f'{src_name}_momentum' in src_blobs
             has_momentum_str = ' [+ momentum]' if has_momentum else ''
             logger.info(
                 '{:s}{:} loaded from weights file into {:s}: {}'.format(
@@ -101,20 +101,21 @@ def initialize_gpu_from_weights_file(model, weights_file, gpu_id=0):
                 # If the blob is already in the workspace, make sure that it
                 # matches the shape of the loaded blob
                 ws_blob = workspace.FetchBlob(dst_name)
-                assert ws_blob.shape == src_blobs[src_name].shape, \
-                    ('Workspace blob {} with shape {} does not match '
-                     'weights file shape {}').format(
-                        src_name,
-                        ws_blob.shape,
-                        src_blobs[src_name].shape)
+                assert (
+                    ws_blob.shape == src_blobs[src_name].shape
+                ), f'Workspace blob {src_name} with shape {ws_blob.shape} does not match weights file shape {src_blobs[src_name].shape}'
+
             workspace.FeedBlob(
                 dst_name,
                 src_blobs[src_name].astype(np.float32, copy=False))
             if has_momentum:
                 workspace.FeedBlob(
-                    dst_name + '_momentum',
-                    src_blobs[src_name + '_momentum'].astype(
-                        np.float32, copy=False))
+                    f'{dst_name}_momentum',
+                    src_blobs[f'{src_name}_momentum'].astype(
+                        np.float32, copy=False
+                    ),
+                )
+
 
     # We preserve blobs that are in the weights file but not used by the current
     # model. We load these into CPU memory under the '__preserve__/' namescope.
@@ -139,8 +140,9 @@ def save_model_to_weights_file(weights_file, model):
     'conv1_w').
     """
     logger.info(
-        'Saving parameters and momentum to {}'.format(
-            os.path.abspath(weights_file)))
+        f'Saving parameters and momentum to {os.path.abspath(weights_file)}'
+    )
+
     blobs = {}
     # Save all parameters
     for param in model.params:
@@ -151,7 +153,7 @@ def save_model_to_weights_file(weights_file, model):
             blobs[unscoped_name] = workspace.FetchBlob(scoped_name)
     # Save momentum
     for param in model.TrainableParams():
-        scoped_name = str(param) + '_momentum'
+        scoped_name = f'{str(param)}_momentum'
         unscoped_name = c2_utils.UnscopeName(scoped_name)
         if unscoped_name not in blobs:
             logger.debug(' {:s} -> {:s}'.format(scoped_name, unscoped_name))
@@ -183,7 +185,7 @@ def broadcast_parameters(model):
              'running single-GPU inference with NUM_GPUS > 1.')
         blobs_per_gpu = int(len(all_blobs) / cfg.NUM_GPUS)
         for i in range(blobs_per_gpu):
-            blobs = [p for p in all_blobs[i::blobs_per_gpu]]
+            blobs = list(all_blobs[i::blobs_per_gpu])
             data = workspace.FetchBlob(blobs[0])
             logger.debug('Broadcasting {} to'.format(str(blobs[0])))
             for i, p in enumerate(blobs[1:]):
@@ -192,15 +194,15 @@ def broadcast_parameters(model):
                     workspace.FeedBlob(p, data)
 
     _do_broadcast(model.params)
-    _do_broadcast([b + '_momentum' for b in model.TrainableParams()])
+    _do_broadcast([f'{b}_momentum' for b in model.TrainableParams()])
 
 
 def sum_multi_gpu_blob(blob_name):
     """Return the sum of a scalar blob held on multiple GPUs."""
-    val = 0
-    for i in range(cfg.NUM_GPUS):
-        val += float(workspace.FetchBlob('gpu_{}/{}'.format(i, blob_name)))
-    return val
+    return sum(
+        float(workspace.FetchBlob(f'gpu_{i}/{blob_name}'))
+        for i in range(cfg.NUM_GPUS)
+    )
 
 
 def average_multi_gpu_blob(blob_name):
@@ -210,7 +212,7 @@ def average_multi_gpu_blob(blob_name):
 
 def print_net(model, namescope='gpu_0'):
     """Print the model network."""
-    logger.info('Printing model: {}'.format(model.net.Name()))
+    logger.info(f'Printing model: {model.net.Name()}')
     op_list = model.net.Proto().op
     for op in op_list:
         input_name = op.input
@@ -222,7 +224,7 @@ def print_net(model, namescope='gpu_0'):
 
         if namescope is None or output_name.startswith(namescope):
             # Only print the forward pass network
-            if output_name.find('grad') >= 0 or output_name.find('__m') >= 0:
+            if 'grad' in output_name or '__m' in output_name:
                 continue
 
             try:
@@ -234,24 +236,28 @@ def print_net(model, namescope='gpu_0'):
                 output_shape = '<unknown>'
 
             first_blob = True
-            op_label = op_type + (op_name if op_name == '' else ':' + op_name)
-            suffix = ' ------- (op: {})'.format(op_label)
+            op_label = op_type + (op_name if op_name == '' else f':{op_name}')
+            suffix = f' ------- (op: {op_label})'
             for j in range(len(input_name)):
                 if input_name[j] in model.params:
                     continue
                 input_blob = workspace.FetchBlob(input_name[j])
                 if isinstance(input_blob, np.ndarray):
                     input_shape = input_blob.shape
-                    logger.info('{:28s}: {:20s} => {:28s}: {:20s}{}'.format(
-                        c2_utils.UnscopeName(str(input_name[j])),
-                        '{}'.format(input_shape),
-                        c2_utils.UnscopeName(str(output_name)),
-                        '{}'.format(output_shape),
-                        suffix))
+                    logger.info(
+                        '{:28s}: {:20s} => {:28s}: {:20s}{}'.format(
+                            c2_utils.UnscopeName(str(input_name[j])),
+                            f'{input_shape}',
+                            c2_utils.UnscopeName(output_name),
+                            f'{output_shape}',
+                            suffix,
+                        )
+                    )
+
                     if first_blob:
                         first_blob = False
                         suffix = ' ------|'
-    logger.info('End of model: {}'.format(model.net.Name()))
+    logger.info(f'End of model: {model.net.Name()}')
 
 
 def configure_bbox_reg_weights(model, saved_cfg):
@@ -291,8 +297,7 @@ def get_group_gn(dim):
 
     if dim_per_gp > 0:
         assert dim % dim_per_gp == 0
-        group_gn = dim // dim_per_gp
+        return dim // dim_per_gp
     else:
         assert dim % num_groups == 0
-        group_gn = num_groups
-    return group_gn
+        return num_groups

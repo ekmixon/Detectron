@@ -106,7 +106,7 @@ if __name__ == '__main__':
     logger.info(pprint.pformat(cfg))
 
     while not os.path.exists(cfg.TEST.WEIGHTS) and args.wait:
-        logger.info('Waiting for \'{}\' to exist...'.format(cfg.TEST.WEIGHTS))
+        logger.info(f"Waiting for \'{cfg.TEST.WEIGHTS}\' to exist...")
         time.sleep(10)
 
     run_inference(

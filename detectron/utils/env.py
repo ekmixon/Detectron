@@ -70,7 +70,7 @@ def get_detectron_ops_lib():
         for subdir in subdirs:
             ops_path = os.path.join(prefix, subdir, _DETECTRON_OPS_LIB)
             if os.path.exists(ops_path):
-                print('Found Detectron ops lib: {}'.format(ops_path))
+                print(f'Found Detectron ops lib: {ops_path}')
                 return ops_path
     raise Exception('Detectron ops lib not found')
 
@@ -81,8 +81,10 @@ def get_custom_ops_lib():
     root_dir, _ = os.path.split(det_dir)
     custom_ops_lib = os.path.join(
         root_dir, 'build/libcaffe2_detectron_custom_ops_gpu.so')
-    assert os.path.exists(custom_ops_lib), \
-        'Custom ops lib not found at \'{}\''.format(custom_ops_lib)
+    assert os.path.exists(
+        custom_ops_lib
+    ), f"Custom ops lib not found at \'{custom_ops_lib}\'"
+
     return custom_ops_lib
 
 

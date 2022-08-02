@@ -135,10 +135,7 @@ def main(args):
         cfg.immutable(False)
         merge_cfg_from_cfg(cfg_orig)
         merge_cfg_from_file(yml)
-        if len(pkl) > 0:
-            weights_file = pkl
-        else:
-            weights_file = cfg.TEST.WEIGHTS
+        weights_file = pkl if len(pkl) > 0 else cfg.TEST.WEIGHTS
         cfg.NUM_GPUS = 1
         assert_and_infer_cfg(cache_urls=False)
         model = model_engine.initialize_model_from_cfg(weights_file)
@@ -151,9 +148,10 @@ def main(args):
         workspace.ResetWorkspace()
 
     out_name = os.path.join(
-        args.output_dir, '{}'.format(os.path.basename(args.im_file) + '.pdf')
+        args.output_dir, f'{os.path.basename(args.im_file)}.pdf'
     )
-    logger.info('Processing {} -> {}'.format(args.im_file, out_name))
+
+    logger.info(f'Processing {args.im_file} -> {out_name}')
 
     vis_utils.vis_one_image(
         im[:, :, ::-1],
@@ -186,8 +184,7 @@ def check_args(args):
                 if i % 2 == 0:
                     model_file = cache_url(model_file, cfg.DOWNLOAD_CACHE)
                     args.models_to_run[i] = model_file
-                assert os.path.exists(model_file), \
-                    '\'{}\' does not exist'.format(model_file)
+                assert os.path.exists(model_file), f"\'{model_file}\' does not exist"
 
 
 if __name__ == '__main__':
